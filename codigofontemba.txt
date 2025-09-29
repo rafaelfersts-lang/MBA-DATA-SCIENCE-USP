@@ -1,0 +1,703 @@
+# -*- coding: utf-8 -*-
+"""
+Editor Spyder
+
+Este é um arquivo de script temporário.
+"""
+# Importa as bibliotecas essenciais
+import pandas as pd
+import random
+import string
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Permite a exibição de gráficos embutidos no console do Spyder
+%matplotlib inline
+
+# Define os arquivos Excel e o caminho de cada um
+arquivos = {
+    'Piloto Tropinal': 'C:/Users/Jessica/Desktop/MBA_RAFA/Piloto Tropinal.xls',
+    'Berlim': 'C:/Users/Jessica/Desktop/MBA_RAFA/Berlim.xls',
+    'Madalena': 'C:/Users/Jessica/Desktop/MBA_RAFA/Madalena.xls'
+}
+
+# Caminhos dos arquivos de orçamento
+arquivos_orcamento = {
+    'Piloto Tropinal': 'C:/Users/Jessica/Desktop/MBA_RAFA/PilotoTropinal_Orçamento.xls',
+    'Berlim': 'C:/Users/Jessica/Desktop/MBA_RAFA/Berlim_Orçamento.xls',
+    'Madalena': 'C:/Users/Jessica/Desktop/MBA_RAFA/Madalena_Orçamento.xls'
+}
+
+# Nome da aba que será lida em cada arquivo
+aba = 'SitAtualParticip'
+aba_orcamento = 'Orçamento'
+
+# Função para gerar nomes aleatórios compostos por letras e números
+def gerar_nome_aleatorio(tamanho=8):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=tamanho))
+
+# Dicionários para mapear nomes originais para nomes aleatórios
+projetos_globais = {}
+centros_globais = {}
+
+# Lista para armazenar os DataFrames processados
+lista_df = []
+
+# Loop por cada arquivo para processamento
+def processar_arquivos():
+    for nome, caminho in arquivos.items():
+        # Leitura da planilha
+        df = pd.read_excel(caminho, sheet_name=aba)
+
+        # Remove coluna indesejada se existir
+        if 'Motivo de Descontinuação' in df.columns:
+            df.drop(columns=['Motivo de Descontinuação'], inplace=True)
+
+        # Substitui os nomes dos Projetos por nomes aleatórios
+        projetos_unicos = df['Projeto'].unique()
+        for proj in projetos_unicos:
+            if proj not in projetos_globais:
+                novo_nome = gerar_nome_aleatorio()
+                while novo_nome in projetos_globais.values():
+                    novo_nome = gerar_nome_aleatorio()
+                projetos_globais[proj] = novo_nome
+        df['Projeto'] = df['Projeto'].map(projetos_globais)
+
+        # Substitui os nomes dos Centros por nomes aleatórios
+        centros_unicos = df['Centro'].unique()
+        for centro in centros_unicos:
+            if centro not in centros_globais:
+                novo_nome = gerar_nome_aleatorio()
+                while novo_nome in centros_globais.values():
+                    novo_nome = gerar_nome_aleatorio()
+                centros_globais[centro] = novo_nome
+        df['Centro'] = df['Centro'].map(centros_globais)
+
+        # Armazena o DataFrame modificado
+        lista_df.append(df)
+
+# Chama a função para processar todos os arquivos
+processar_arquivos()
+
+# Concatena todos os DataFrames em um só
+consolidado = pd.concat(lista_df, ignore_index=True)
+
+# Tabela: Total de Participantes por Projeto
+total_participantes_total = consolidado.groupby('Projeto')['Participante'].nunique().reset_index(name='Total Participantes')
+
+# Tabela: Conformidade por Projeto
+conformidade_proj = consolidado[consolidado['Situação Atual'] == 'Concluiu o estudo'].groupby('Projeto')['Participante'].nunique().reset_index(name='Concluiu')
+conformidade_proj = conformidade_proj.merge(total_participantes_total, on='Projeto')
+conformidade_proj['Taxa de Conformidade (%)'] = (conformidade_proj['Concluiu'] / conformidade_proj['Total Participantes'] * 100).round(2)
+
+# Tabela: Falha de Seleção por Projeto
+falha_proj = consolidado[consolidado['Situação Atual'] == 'Falha Seleção'].groupby('Projeto')['Participante'].nunique().reset_index(name='Falha')
+falha_proj = falha_proj.merge(total_participantes_total, on='Projeto')
+falha_proj['Taxa de Falha de Seleção (%)'] = (falha_proj['Falha'] / falha_proj['Total Participantes'] * 100).round(2)
+
+# Tabela Final: Projeto, Taxa de Conformidade, Taxa de Falha
+taxas_gerais = conformidade_proj[['Projeto', 'Taxa de Conformidade (%)']].merge(
+    falha_proj[['Projeto', 'Taxa de Falha de Seleção (%)']], on='Projeto', how='outer'
+)
+
+# Tabela: Total de Participantes por Projeto e Centro
+total_por_centro = consolidado.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index(name='Total')
+
+# Tabela: Conformidade por Centro
+df_concluiu = consolidado[consolidado['Situação Atual'] == 'Concluiu o estudo']
+conformidade_centro = df_concluiu.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index(name='Concluiu')
+conformidade_centro = conformidade_centro.merge(total_por_centro, on=['Projeto', 'Centro'])
+conformidade_centro['Taxa de Conformidade (%)'] = (conformidade_centro['Concluiu'] / conformidade_centro['Total'] * 100).round(2)
+
+# Tabela: Falha de Seleção por Centro
+df_falha = consolidado[consolidado['Situação Atual'] == 'Falha Seleção']
+falha_centro = df_falha.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index(name='Falha')
+falha_centro = falha_centro.merge(total_por_centro, on=['Projeto', 'Centro'])
+falha_centro['Taxa de Falha de Seleção (%)'] = (falha_centro['Falha'] / falha_centro['Total'] * 100).round(2)
+
+# Tabela Final: Projeto, Centro, Taxas de Conformidade e Falha
+taxas_por_centro = conformidade_centro[['Projeto', 'Centro', 'Taxa de Conformidade (%)']].merge(
+    falha_centro[['Projeto', 'Centro', 'Taxa de Falha de Seleção (%)']], on=['Projeto', 'Centro'], how='outer'
+)
+
+# Gráficos por Projeto: Taxa de Conformidade por Centro
+for projeto in taxas_por_centro['Projeto'].unique():
+    dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto]
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(data=dados_proj, x='Centro', y='Taxa de Conformidade (%)')
+    plt.title(f"Taxa de Conformidade por Centro - Projeto {projeto}")
+    plt.xticks(rotation=45)
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+# Gráficos por Projeto: Taxa de Falha de Seleção por Centro
+for projeto in taxas_por_centro['Projeto'].unique():
+    dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto]
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(data=dados_proj, x='Centro', y='Taxa de Falha de Seleção (%)')
+    plt.title(f"Taxa de Falha de Seleção por Centro - Projeto {projeto}")
+    plt.xticks(rotation=45)
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+# Gráfico comparativo geral: Taxa de Conformidade por Projeto
+plt.figure(figsize=(10, 5))
+ax = sns.barplot(data=taxas_gerais, x='Projeto', y='Taxa de Conformidade (%)')
+plt.title("Taxa de Conformidade Geral por Projeto")
+for p in ax.patches:
+    ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='bottom', fontsize=9)
+plt.tight_layout()
+plt.show()
+
+# Gráfico comparativo geral: Taxa de Falha de Seleção por Projeto
+plt.figure(figsize=(10, 5))
+ax = sns.barplot(data=taxas_gerais, x='Projeto', y='Taxa de Falha de Seleção (%)')
+plt.title("Taxa de Falha de Seleção Geral por Projeto")
+for p in ax.patches:
+    ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='bottom', fontsize=9)
+plt.tight_layout()
+plt.show()
+
+# ======== GRÁFICO 1: Total de Participantes por Projeto ========
+total_participantes_total = consolidado.groupby('Projeto')['Participante'].nunique().reset_index(name='Total Participantes')
+
+plt.figure(figsize=(10, 5))
+ax = sns.barplot(data=total_participantes_total, x='Projeto', y='Total Participantes')
+plt.title("Total de Participantes por Projeto")
+for p in ax.patches:
+    ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='bottom', fontsize=9)
+plt.tight_layout()
+plt.show()
+
+
+# ======== GRÁFICO 2: Total de Participantes por Centro (separado por Projeto) ========
+total_participantes_por_centro = consolidado.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index(name='Total Participantes')
+
+for projeto in total_participantes_por_centro['Projeto'].unique():
+    dados_proj = total_participantes_por_centro[total_participantes_por_centro['Projeto'] == projeto]
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(data=dados_proj, x='Centro', y='Total Participantes')
+    plt.title(f"Total de Participantes por Centro - Projeto {projeto}")
+    plt.xticks(rotation=45)
+    for p in ax.patches:
+        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2., p.get_height()),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+
+# ======== GRÁFICO 3: Participantes por Situação Atual (Pizza) - Separado por Projeto ========
+for projeto in consolidado['Projeto'].unique():
+    dados_proj = consolidado[consolidado['Projeto'] == projeto]
+    situacoes = dados_proj['Situação Atual'].value_counts()
+    
+    plt.figure(figsize=(7, 7))
+    plt.pie(situacoes, labels=situacoes.index, autopct='%1.1f%%', startangle=90)
+    plt.title(f"Percentual por Situação Atual - Projeto {projeto}")
+    plt.axis('equal')  # Deixa o gráfico de pizza circular
+    plt.tight_layout()
+    plt.show()
+
+# ================== CÁLCULO DA TAXA DE INCLUSÃO ==================
+
+# Define quais situações contam para a taxa de inclusão
+situacoes_inclusao = ['Concluiu o estudo', 'Descontinuado', 'Em andamento']
+
+# ----------------- TAXA DE INCLUSÃO POR PROJETO -----------------
+inclusao_proj = consolidado[consolidado['Situação Atual'].isin(situacoes_inclusao)]
+inclusao_proj = inclusao_proj.groupby('Projeto')['Participante'].nunique().reset_index(name='Incluídos')
+inclusao_proj = inclusao_proj.merge(total_participantes_total, on='Projeto')
+inclusao_proj['Taxa de Inclusão (%)'] = (inclusao_proj['Incluídos'] / inclusao_proj['Total Participantes'] * 100).round(2)
+
+# ----------------- TAXA DE INCLUSÃO POR CENTRO (POR PROJETO) -----------------
+inclusao_centro = consolidado[consolidado['Situação Atual'].isin(situacoes_inclusao)]
+inclusao_centro = inclusao_centro.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index(name='Incluídos')
+inclusao_centro = inclusao_centro.merge(total_participantes_por_centro, on=['Projeto', 'Centro'])
+inclusao_centro['Taxa de Inclusão (%)'] = (inclusao_centro['Incluídos'] / inclusao_centro['Total Participantes'] * 100).round(2)
+
+# ================== GRÁFICOS DE TAXA DE INCLUSÃO ==================
+
+# --------- Gráfico Comparativo Geral por Projeto ---------
+plt.figure(figsize=(10, 5))
+ax = sns.barplot(data=inclusao_proj, x='Projeto', y='Taxa de Inclusão (%)')
+plt.title("Taxa de Inclusão por Projeto")
+for p in ax.patches:
+    ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='bottom', fontsize=9)
+plt.tight_layout()
+plt.show()
+
+# --------- Gráficos Comparativos por Centro (Separado por Projeto) ---------
+for projeto in inclusao_centro['Projeto'].unique():
+    dados_proj = inclusao_centro[inclusao_centro['Projeto'] == projeto]
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(data=dados_proj, x='Centro', y='Taxa de Inclusão (%)')
+    plt.title(f"Taxa de Inclusão por Centro - Projeto {projeto}")
+    plt.xticks(rotation=45)
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+# ========== Adiciona a Taxa de Inclusão na Tabela Final por Projeto ==========
+
+taxas_gerais = taxas_gerais.merge(
+    inclusao_proj[['Projeto', 'Taxa de Inclusão (%)']],
+    on='Projeto',
+    how='outer'
+)
+
+# ========== Adiciona a Taxa de Inclusão na Tabela Final por Centro ==========
+
+taxas_por_centro = taxas_por_centro.merge(
+    inclusao_centro[['Projeto', 'Centro', 'Taxa de Inclusão (%)']],
+    on=['Projeto', 'Centro'],
+    how='outer'
+)
+
+# ========== EXPORTA TODAS AS TABELAS PARA UM ARQUIVO EXCEL COM VÁRIAS ABAS ==========
+
+# Caminho para salvar o arquivo de saída
+caminho_saida = 'C:/Users/Jessica/Desktop/MBA_RAFA/analise_participantes_resultados.xlsx'
+
+# Legenda dos Projetos
+tabela_legenda_projetos = pd.DataFrame.from_dict(projetos_globais, orient='index', columns=['Código Projeto'])
+tabela_legenda_projetos.reset_index(inplace=True)
+tabela_legenda_projetos.columns = ['Nome Projeto Original', 'Código Projeto']
+
+# Legenda dos Centros
+tabela_legenda_centros = pd.DataFrame.from_dict(centros_globais, orient='index', columns=['Código Centro'])
+tabela_legenda_centros.reset_index(inplace=True)
+tabela_legenda_centros.columns = ['Nome Centro Original', 'Código Centro']
+
+# Resumo Total de Participantes com nome dos códigos
+tabela_total_participantes = consolidado.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index()
+tabela_total_participantes.columns = ['Código Projeto', 'Código Centro', 'Total Participantes']
+
+with pd.ExcelWriter(caminho_saida, engine='xlsxwriter') as writer:
+    total_participantes_total.to_excel(writer, sheet_name='Total por Projeto', index=False)
+    total_participantes_por_centro.to_excel(writer, sheet_name='Total por Centro', index=False)
+    taxas_gerais.to_excel(writer, sheet_name='Taxas por Projeto', index=False)
+    taxas_por_centro.to_excel(writer, sheet_name='Taxas por Centro', index=False)
+    inclusao_proj.to_excel(writer, sheet_name='Inclusão por Projeto', index=False)
+    inclusao_centro.to_excel(writer, sheet_name='Inclusão por Centro', index=False)
+    conformidade_proj.to_excel(writer, sheet_name='Conformidade Projeto', index=False)
+    falha_proj.to_excel(writer, sheet_name='Falha Projeto', index=False)
+    conformidade_centro.to_excel(writer, sheet_name='Conformidade Centro', index=False)
+    falha_centro.to_excel(writer, sheet_name='Falha Centro', index=False)
+    tabela_legenda_projetos.to_excel(writer, sheet_name='Legenda Projetos', index=False)
+    tabela_legenda_centros.to_excel(writer, sheet_name='Legenda Centros', index=False)
+    tabela_total_participantes.to_excel(writer, sheet_name='Resumo Participantes', index=False)
+
+# ============================
+# NOVO BLOCO: PROCESSAMENTO DOS DADOS DE ORÇAMENTO
+# ============================
+
+lista_orcamentos = []
+
+for nome, caminho in arquivos_orcamento.items():
+    df_orc = pd.read_excel(caminho, sheet_name=aba_orcamento)
+
+    # Substitui nomes conforme dicionários globais
+    df_orc['Projeto'] = df_orc['Projeto'].map(projetos_globais)
+    df_orc['Centro'] = df_orc['Centro'].map(centros_globais)
+
+    lista_orcamentos.append(df_orc)
+
+orcamento_consolidado = pd.concat(lista_orcamentos, ignore_index=True)
+
+# ============================
+# CÁLCULOS DE TAXA ORÇAMENTÁRIA
+# ============================
+
+# Junta orçamento com taxa de inclusão (já calculada)
+orcamento_com_inclusos = orcamento_consolidado.merge(
+    inclusao_centro[['Projeto', 'Centro', 'Incluídos']],
+    on=['Projeto', 'Centro'],
+    how='left'
+)
+
+orcamento_com_inclusos['Total Bolsa Investigador'] = (
+    orcamento_com_inclusos['Valor da bolsa do investigador '] * orcamento_com_inclusos['Incluídos']
+)
+orcamento_com_inclusos['Total Bolsa PCA'] = (
+    orcamento_com_inclusos['Bolsa aprovada PCA'] * orcamento_com_inclusos['Incluídos']
+)
+orcamento_com_inclusos['Taxa Orçamentária (%)'] = (
+    (orcamento_com_inclusos['Total Bolsa Investigador'] / orcamento_com_inclusos['Total Bolsa PCA']) * 100
+).round(2)
+
+# ============================
+# TABELAS DE TAXA ORÇAMENTÁRIA
+# ============================
+
+# Por centro (já calculada acima)
+taxa_orcamentaria_centro = orcamento_com_inclusos[['Projeto', 'Centro', 'Taxa Orçamentária (%)']]
+
+# Por projeto (média ponderada)
+taxa_orcamentaria_projeto = orcamento_com_inclusos.copy()
+taxa_orcamentaria_projeto = taxa_orcamentaria_projeto.groupby('Projeto').apply(
+    lambda g: pd.Series({
+        'Taxa Orçamentária (%)': (
+            g['Total Bolsa Investigador'].sum() / g['Total Bolsa PCA'].sum() * 100
+        ) if g['Total Bolsa PCA'].sum() > 0 else 0
+    })
+).reset_index()
+
+# ============================
+# INTEGRA TABELAS EXISTENTES
+# ============================
+
+taxas_gerais = taxas_gerais.merge(
+    taxa_orcamentaria_projeto[['Projeto', 'Taxa Orçamentária (%)']], on='Projeto', how='outer'
+)
+
+taxas_por_centro = taxas_por_centro.merge(
+    taxa_orcamentaria_centro[['Projeto','Centro', 'Taxa Orçamentária (%)']], on=['Projeto', 'Centro'], how='outer'
+)
+
+# ============================
+# GRÁFICOS DE TAXA ORÇAMENTÁRIA
+# ============================
+
+# Gráfico geral por projeto
+plt.figure(figsize=(10, 5))
+ax = sns.barplot(data=taxa_orcamentaria_projeto, x='Projeto', y='Taxa Orçamentária (%)')
+plt.title("Taxa Orçamentária por Projeto")
+for p in ax.patches:
+    ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width()/2., p.get_height()),
+                ha='center', va='bottom', fontsize=9)
+plt.tight_layout()
+plt.show()
+
+# Gráficos por centro e projeto
+for projeto in taxa_orcamentaria_centro['Projeto'].unique():
+    dados_proj = taxa_orcamentaria_centro[taxa_orcamentaria_centro['Projeto'] == projeto]
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(data=dados_proj, x='Centro', y='Taxa Orçamentária (%)')
+    plt.title(f"Taxa Orçamentária por Centro - Projeto {projeto}")
+    plt.xticks(rotation=45)
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width()/2., p.get_height()),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+# Gráficos de pizza por projeto
+for projeto in taxa_orcamentaria_centro['Projeto'].unique():
+    dados_proj = taxa_orcamentaria_centro[taxa_orcamentaria_centro['Projeto'] == projeto].copy()
+    
+    # Remove entradas com Taxa Orçamentária ausente ou zero
+    dados_proj = dados_proj.dropna(subset=['Taxa Orçamentária (%)'])
+    dados_proj = dados_proj[dados_proj['Taxa Orçamentária (%)'] > 0]
+
+    if not dados_proj.empty:
+        plt.figure(figsize=(7, 7))
+        plt.pie(
+            dados_proj['Taxa Orçamentária (%)'],
+            labels=dados_proj['Centro'],
+            autopct='%1.1f%%',
+            startangle=90
+        )
+        plt.title(f"Distribuição da Taxa Orçamentária por Centro - Projeto {projeto}")
+        plt.axis('equal')
+        plt.tight_layout()
+        plt.show()
+    else:
+        print(f"[Aviso] Projeto {projeto} não possui dados válidos para gráfico de pizza.")
+        
+        # Junta a Taxa Orçamentária com as demais tabelas de métricas
+tabela1 = taxa_orcamentaria_projeto[['Projeto', 'Taxa Orçamentária (%)']].copy()
+
+tabela2 = taxa_orcamentaria_centro[['Projeto', 'Centro', 'Taxa Orçamentária (%)']].copy()
+
+
+# Exportar todas as tabelas para o Excel
+with pd.ExcelWriter('Relatorio_Taxas_Completo.xlsx', engine='xlsxwriter') as writer:
+    tabela1.to_excel(writer, sheet_name='Resumo Projeto - Orcamento', index=False)
+    tabela2.to_excel(writer, sheet_name='Resumo Projeto-Centro Orc.', index=False)
+
+    
+    # Novas abas solicitadas
+    taxas_gerais.to_excel(writer, sheet_name='Taxas Gerais', index=False)
+    taxas_por_centro.to_excel(writer, sheet_name='Taxas por Centro', index=False)
+
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+
+def calcular_dea(df, col_id, inputs, outputs):
+    df_valid = df.dropna(subset=inputs + outputs).copy()
+
+    # Escala para 0-1
+    scaler = MinMaxScaler()
+    df_valid[inputs + outputs] = scaler.fit_transform(df_valid[inputs + outputs])
+
+    X = df_valid[inputs].values
+    Y = df_valid[outputs].values
+
+    eficiencia = []
+    for i in range(len(df_valid)):
+        xi = X[i]
+        yi = Y[i]
+        ratios = []
+
+        for j in range(len(df_valid)):
+            xj = X[j]
+            yj = Y[j]
+            if all(xj <= xi) and all(yj >= yi):
+                ratios.append(np.linalg.norm(xj) / np.linalg.norm(xi) if np.linalg.norm(xi) != 0 else 0)
+        
+        eficiencia.append(1 / (1 + sum(ratios)) if sum(ratios) > 0 else 1.0)
+
+    df_result = df_valid[col_id].copy()
+    df_result['Rank de Eficiência (DEA)'] = eficiencia
+    return df_result
+
+dea_inputs = ['Taxa Orçamentária (%)', 'Taxa de Falha de Seleção (%)']
+dea_outputs = ['Taxa de Inclusão (%)', 'Taxa de Conformidade (%)']
+
+# Garante que os dados estão completos
+taxas_por_centro_valid = taxas_por_centro.dropna(subset=dea_inputs + dea_outputs + ['Projeto', 'Centro'])
+
+# Cálculo do DEA por Projeto + Centro
+dea_centro = calcular_dea(
+    df=taxas_por_centro_valid,
+    col_id=['Projeto', 'Centro'],
+    inputs=dea_inputs,
+    outputs=dea_outputs
+)
+
+# Merge do resultado na tabela principal
+taxas_por_centro = taxas_por_centro.merge(dea_centro, on=['Projeto', 'Centro'], how='left')
+
+rank_projeto_medio = taxas_por_centro.dropna(subset=['Rank de Eficiência (DEA)']) \
+    .groupby('Projeto')['Rank de Eficiência (DEA)'].mean().reset_index()
+
+rank_projeto_medio['Rank de Eficiência (DEA)'] = rank_projeto_medio['Rank de Eficiência (DEA)'].round(4)
+rank_projeto_medio.sort_values('Rank de Eficiência (DEA)', ascending=False, inplace=True)
+
+# Adiciona também na tabela taxas_gerais
+taxas_gerais = taxas_gerais.merge(rank_projeto_medio, on='Projeto', how='left')
+
+for projeto in taxas_por_centro['Projeto'].unique():
+    dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto].copy()
+
+    if 'Rank de Eficiência (DEA)' not in dados_proj.columns:
+        print(f"[ERRO] Coluna 'Rank de Eficiência (DEA)' ausente no projeto {projeto}")
+        continue
+
+    dados_proj = dados_proj.dropna(subset=['Rank de Eficiência (DEA)'])
+    dados_proj.sort_values('Rank de Eficiência (DEA)', ascending=False, inplace=True)
+
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(data=dados_proj, x='Centro', y='Rank de Eficiência (DEA)', palette='viridis')
+    plt.title(f"Rank de Eficiência (DEA) por Centro - Projeto {projeto}")
+    plt.xticks(rotation=45)
+    for p in ax.patches:
+        altura = p.get_height()
+        ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+plt.figure(figsize=(10, 5))
+ax = sns.barplot(data=rank_projeto_medio, x='Projeto', y='Rank de Eficiência (DEA)', palette='crest')
+plt.title("Média do Rank de Eficiência (DEA) por Projeto")
+for p in ax.patches:
+    altura = p.get_height()
+    ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
+                ha='center', va='bottom', fontsize=9)
+plt.tight_layout()
+plt.show()
+
+# Exportar todas as tabelas para o Excel
+with pd.ExcelWriter('Relatorio_Taxas_Completo.xlsx', engine='xlsxwriter') as writer:
+    tabela1.to_excel(writer, sheet_name='Resumo Projeto - Orcamento', index=False)
+    tabela2.to_excel(writer, sheet_name='Resumo Projeto-Centro Orc.', index=False)
+    
+    # Tabelas com DEA integradas
+    taxas_gerais.to_excel(writer, sheet_name='Taxas Gerais', index=False)
+    taxas_por_centro.to_excel(writer, sheet_name='Taxas por Centro', index=False)
+
+    # Nova aba com média de eficiência por projeto
+    rank_projeto_medio.to_excel(writer, sheet_name='Rank Médio por Projeto', index=False)
+
+    dea_centro.to_excel(writer, sheet_name='Rank DEA por Centro', index=False)
+    
+   
+# ========================
+# GRÁFICO DE FRONTEIRA DEA (ENVOLTÓRIA)
+# ========================
+
+# Escolhemos uma visualização 2D: Input = Taxa Orçamentária, Output = Taxa de Conformidade
+# Apenas centros com dados completos
+dados_dea_plot = taxas_por_centro.dropna(subset=['Taxa Orçamentária (%)', 'Taxa de Conformidade (%)', 'Rank de Eficiência (DEA)']).copy()
+
+# Identifica pontos eficientes (DEA = 1.0)
+dados_dea_plot['É Eficiente'] = dados_dea_plot['Rank de Eficiência (DEA)'].round(4) == 1.0
+
+for projeto in dados_dea_plot['Projeto'].unique():
+    dados_proj = dados_dea_plot[dados_dea_plot['Projeto'] == projeto]
+    
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(
+        data=dados_proj,
+        x='Taxa Orçamentária (%)',
+        y='Taxa de Conformidade (%)',
+        hue='É Eficiente',
+        palette={True: 'blue', False: 'gray'},
+        s=100
+    )
+
+    # Anotações
+    for _, row in dados_proj.iterrows():
+        plt.text(row['Taxa Orçamentária (%)'] + 0.5, row['Taxa de Conformidade (%)'] + 0.5,
+                 row['Centro'], fontsize=8)
+
+    plt.title(f'Fronteira de Eficiência (DEA) - Projeto {projeto}')
+    plt.xlabel('Taxa Orçamentária (%)')
+    plt.ylabel('Taxa de Conformidade (%)')
+    plt.legend(title='Centro Eficiente', loc='best')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+    
+    # ========================
+# CÁLCULO DE MÉDIA E MEDIANA DAS TAXAS POR CENTRO (GERAL)
+# ========================
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Lista de métricas a avaliar
+metricas = [
+    'Taxa Orçamentária (%)',
+    'Taxa de Falha de Seleção (%)',
+    'Taxa de Inclusão (%)',
+    'Taxa de Conformidade (%)'
+]
+
+# Para cada métrica, calcula estatísticas e plota gráfico
+for metrica in metricas:
+    dados_validos = taxas_por_centro[[metrica, 'Centro']].dropna()
+    
+    if dados_validos.empty:
+        print(f"[Aviso] Sem dados válidos para a métrica: {metrica}")
+        continue
+    
+    media = dados_validos[metrica].mean()
+    mediana = dados_validos[metrica].median()
+
+    print(f"{metrica}:")
+    print(f"  - Média: {media:.2f}%")
+    print(f"  - Mediana: {mediana:.2f}%")
+
+    # Gráfico de barras por Centro (independente do Projeto)
+    plt.figure(figsize=(12, 6))
+    ax = sns.barplot(data=dados_validos, x='Centro', y=metrica, palette='Blues_d')
+
+    # Linhas tracejadas de média e mediana
+    plt.axhline(media, color='red', linestyle='--', label=f'Média ({media:.2f}%)')
+    plt.axhline(mediana, color='green', linestyle='--', label=f'Mediana ({mediana:.2f}%)')
+
+    # Anotações
+    for p in ax.patches:
+        altura = p.get_height()
+        ax.annotate(f'{altura:.2f}%', (p.get_x() + p.get_width() / 2., altura),
+                    ha='center', va='bottom', fontsize=8)
+
+    plt.title(f'{metrica} por Centro (Todos os Projetos)')
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+    # ================================
+# MÉDIA, MEDIANA E GRÁFICO DO RANK DE EFICIÊNCIA POR CENTRO (GERAL)
+# ================================
+
+# Verifica se a coluna existe e tem dados
+col_dea = 'Rank de Eficiência (DEA)'
+
+dados_dea_geral = taxas_por_centro[['Centro', col_dea]].dropna()
+
+if dados_dea_geral.empty:
+    print("[Aviso] Não há dados disponíveis para Rank de Eficiência (DEA).")
+else:
+    media_dea = dados_dea_geral[col_dea].mean()
+    mediana_dea = dados_dea_geral[col_dea].median()
+
+    print("Rank de Eficiência (DEA):")
+    print(f"  - Média: {media_dea:.4f}")
+    print(f"  - Mediana: {mediana_dea:.4f}")
+
+    # Gráfico de barras por Centro
+    plt.figure(figsize=(12, 6))
+    ax = sns.barplot(data=dados_dea_geral, x='Centro', y=col_dea, palette='mako')
+
+    # Linhas tracejadas para média e mediana
+    plt.axhline(media_dea, color='red', linestyle='--', label=f'Média ({media_dea:.4f})')
+    plt.axhline(mediana_dea, color='green', linestyle='--', label=f'Mediana ({mediana_dea:.4f})')
+
+    # Anotações
+    for p in ax.patches:
+        altura = p.get_height()
+        ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
+                    ha='center', va='bottom', fontsize=8)
+
+    plt.title('Rank de Eficiência (DEA) por Centro (Todos os Projetos)')
+    plt.xticks(rotation=45)
+    plt.ylabel('Rank de Eficiência (DEA)')
+    plt.xlabel('Centro')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+# ========================
+# GRÁFICO DE DISPERSÃO: RELAÇÃO ENTRE CADA TAXA E O RANK DE EFICIÊNCIA (DEA)
+# ========================
+
+# Certifica-se de que as colunas necessárias estão presentes
+taxas_para_grafico = dea_inputs + dea_outputs + ['Rank de Eficiência (DEA)', 'Centro']
+dados_disp = taxas_por_centro.dropna(subset=taxas_para_grafico).copy()
+
+# Cores distintas para cada variável
+cores = {
+    'Taxa Orçamentária (%)': 'blue',
+    'Taxa de Falha de Seleção (%)': 'orange',
+    'Taxa de Inclusão (%)': 'green',
+    'Taxa de Conformidade (%)': 'purple'
+}
+
+plt.figure(figsize=(10, 6))
+
+# Para cada taxa (input/output), plota uma linha de dispersão no mesmo gráfico
+for taxa in dea_inputs + dea_outputs:
+    plt.scatter(
+        dados_disp[taxa],
+        dados_disp['Rank de Eficiência (DEA)'],
+        label=taxa,
+        alpha=0.7,
+        s=80,
+        color=cores.get(taxa, 'gray'),
+        edgecolors='black'
+    )
+
+plt.title("Relação entre Taxas e Rank de Eficiência (DEA)")
+plt.xlabel("Valor da Taxa (%)")
+plt.ylabel("Rank de Eficiência (DEA)")
+plt.legend(title="Variável")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
