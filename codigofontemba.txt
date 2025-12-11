@@ -138,9 +138,6 @@ taxas_por_centro = conformidade_centro[['Projeto', 'Centro', 'Taxa de Conformida
 # ===========================
 # GRÁFICOS / VISUALIZAÇÃO 
 # ===========================
-# (Os códigos de plotagem do seu script original foram preservados; para economizar espaço aqui,
-#  mantive exatamente as mesmas chamadas de matplotlib/seaborn mais adiante no script.)
-#  Para não duplicar muito, vou manter os blocos de plotagem originais depois do cálculo do DEA.
 
 # ======== GRÁFICO 1: Total de Participantes por Projeto ========
 total_participantes_total = consolidado.groupby('Projeto')['Participante'].nunique().reset_index(name='Total Participantes')
@@ -209,8 +206,7 @@ taxas_por_centro = taxas_por_centro.merge(
 # ============================================================================
 #                      BLOCO NOVO: CÁLCULO DO DEA USANDO pyDEA
 #  - modelo solicitado: CCR (CRS)
-#  - inputs e outputs mantidos conforme seu script original
-#  - implementação: tenta usar pyDEA (import) e, se não, invoca CLI do pyDEA
+# #  - implementação: tenta usar pyDEA (import) e, se não, invoca CLI do pyDEA
 # ============================================================================
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
@@ -500,7 +496,7 @@ rank_projeto_medio.sort_values('Rank de Eficiência (DEA)', ascending=False, inp
 taxas_gerais = taxas_gerais.merge(rank_projeto_medio, on='Projeto', how='left')
 
 # ===========================
-# PLOTS DE DEA (mantendo lógica do script original)
+# PLOTS DE DEA
 # ===========================
 for projeto in taxas_por_centro['Projeto'].unique():
     dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto].copy()
@@ -550,7 +546,7 @@ with pd.ExcelWriter('Relatorio_Taxas_Completo.xlsx', engine='xlsxwriter') as wri
         pass
 
 # ===========================
-# BLOCO: processamento dos dados de orçamento (igual ao original)
+# BLOCO: processamento dos dados de orçamento
 # ===========================
 lista_orcamentos = []
 
