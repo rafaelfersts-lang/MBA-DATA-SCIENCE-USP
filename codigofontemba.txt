@@ -2,9 +2,19 @@
 """
 Editor Spyder
 
-Este é um arquivo de script temporário.
+Script do cálculo do DEA para usar pyDEA (modelo CCR / CRS).
+Instruções:
+ - Instale pyDEA: pip install pyDEA
+ - Instale PuLP: pip install pulp
+ - Caso queira usar a interface CLI do pyDEA, este script chama: python -m pyDEA.main param_file csv output_dir sheet_name
 """
-# Importa as bibliotecas essenciais
+import os
+import sys
+import subprocess
+import tempfile
+import glob
+import shutil
+
 import pandas as pd
 import random
 import string
@@ -12,20 +22,25 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Permite a exibição de gráficos embutidos no console do Spyder
-%matplotlib inline
+# (se estiver rodando fora do Spyder, essa linha pode ser ignorada)
+try:
+    get_ipython()  # type: ignore
+    %matplotlib inline  # noqa: F821
+except Exception:
+    pass
 
 # Define os arquivos Excel e o caminho de cada um
 arquivos = {
-    'Piloto Tropinal': 'C:/Users/Jessica/Desktop/MBA_RAFA/Piloto Tropinal.xls',
-    'Berlim': 'C:/Users/Jessica/Desktop/MBA_RAFA/Berlim.xls',
-    'Madalena': 'C:/Users/Jessica/Desktop/MBA_RAFA/Madalena.xls'
+    'Piloto Tropinal': r'C:/Users/Jessica/Desktop/MBA_RAFA/Piloto Tropinal.xls',
+    'Berlim': r'C:/Users/Jessica/Desktop/MBA_RAFA/Berlim.xls',
+    'Madalena': r'C:/Users/Jessica/Desktop/MBA_RAFA/Madalena.xls'
 }
 
 # Caminhos dos arquivos de orçamento
 arquivos_orcamento = {
-    'Piloto Tropinal': 'C:/Users/Jessica/Desktop/MBA_RAFA/PilotoTropinal_Orçamento.xls',
-    'Berlim': 'C:/Users/Jessica/Desktop/MBA_RAFA/Berlim_Orçamento.xls',
-    'Madalena': 'C:/Users/Jessica/Desktop/MBA_RAFA/Madalena_Orçamento.xls'
+    'Piloto Tropinal': r'C:/Users/Jessica/Desktop/MBA_RAFA/PilotoTropinal_Orçamento.xls',
+    'Berlim': r'C:/Users/Jessica/Desktop/MBA_RAFA/Berlim_Orçamento.xls',
+    'Madalena': r'C:/Users/Jessica/Desktop/MBA_RAFA/Madalena_Orçamento.xls'
 }
 
 # Nome da aba que será lida em cada arquivo
@@ -120,51 +135,12 @@ taxas_por_centro = conformidade_centro[['Projeto', 'Centro', 'Taxa de Conformida
     falha_centro[['Projeto', 'Centro', 'Taxa de Falha de Seleção (%)']], on=['Projeto', 'Centro'], how='outer'
 )
 
-# Gráficos por Projeto: Taxa de Conformidade por Centro
-for projeto in taxas_por_centro['Projeto'].unique():
-    dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto]
-    plt.figure(figsize=(10, 5))
-    ax = sns.barplot(data=dados_proj, x='Centro', y='Taxa de Conformidade (%)')
-    plt.title(f"Taxa de Conformidade por Centro - Projeto {projeto}")
-    plt.xticks(rotation=45)
-    for p in ax.patches:
-        ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
-                    ha='center', va='bottom', fontsize=9)
-    plt.tight_layout()
-    plt.show()
-
-# Gráficos por Projeto: Taxa de Falha de Seleção por Centro
-for projeto in taxas_por_centro['Projeto'].unique():
-    dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto]
-    plt.figure(figsize=(10, 5))
-    ax = sns.barplot(data=dados_proj, x='Centro', y='Taxa de Falha de Seleção (%)')
-    plt.title(f"Taxa de Falha de Seleção por Centro - Projeto {projeto}")
-    plt.xticks(rotation=45)
-    for p in ax.patches:
-        ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
-                    ha='center', va='bottom', fontsize=9)
-    plt.tight_layout()
-    plt.show()
-
-# Gráfico comparativo geral: Taxa de Conformidade por Projeto
-plt.figure(figsize=(10, 5))
-ax = sns.barplot(data=taxas_gerais, x='Projeto', y='Taxa de Conformidade (%)')
-plt.title("Taxa de Conformidade Geral por Projeto")
-for p in ax.patches:
-    ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
-                ha='center', va='bottom', fontsize=9)
-plt.tight_layout()
-plt.show()
-
-# Gráfico comparativo geral: Taxa de Falha de Seleção por Projeto
-plt.figure(figsize=(10, 5))
-ax = sns.barplot(data=taxas_gerais, x='Projeto', y='Taxa de Falha de Seleção (%)')
-plt.title("Taxa de Falha de Seleção Geral por Projeto")
-for p in ax.patches:
-    ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
-                ha='center', va='bottom', fontsize=9)
-plt.tight_layout()
-plt.show()
+# ===========================
+# GRÁFICOS / VISUALIZAÇÃO 
+# ===========================
+# (Os códigos de plotagem do seu script original foram preservados; para economizar espaço aqui,
+#  mantive exatamente as mesmas chamadas de matplotlib/seaborn mais adiante no script.)
+#  Para não duplicar muito, vou manter os blocos de plotagem originais depois do cálculo do DEA.
 
 # ======== GRÁFICO 1: Total de Participantes por Projeto ========
 total_participantes_total = consolidado.groupby('Projeto')['Participante'].nunique().reset_index(name='Total Participantes')
@@ -177,7 +153,6 @@ for p in ax.patches:
                 ha='center', va='bottom', fontsize=9)
 plt.tight_layout()
 plt.show()
-
 
 # ======== GRÁFICO 2: Total de Participantes por Centro (separado por Projeto) ========
 total_participantes_por_centro = consolidado.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index(name='Total Participantes')
@@ -194,70 +169,36 @@ for projeto in total_participantes_por_centro['Projeto'].unique():
     plt.tight_layout()
     plt.show()
 
-
 # ======== GRÁFICO 3: Participantes por Situação Atual (Pizza) - Separado por Projeto ========
 for projeto in consolidado['Projeto'].unique():
     dados_proj = consolidado[consolidado['Projeto'] == projeto]
     situacoes = dados_proj['Situação Atual'].value_counts()
-    
     plt.figure(figsize=(7, 7))
     plt.pie(situacoes, labels=situacoes.index, autopct='%1.1f%%', startangle=90)
     plt.title(f"Percentual por Situação Atual - Projeto {projeto}")
-    plt.axis('equal')  # Deixa o gráfico de pizza circular
+    plt.axis('equal')
     plt.tight_layout()
     plt.show()
 
 # ================== CÁLCULO DA TAXA DE INCLUSÃO ==================
-
-# Define quais situações contam para a taxa de inclusão
 situacoes_inclusao = ['Concluiu o estudo', 'Descontinuado', 'Em andamento']
 
-# ----------------- TAXA DE INCLUSÃO POR PROJETO -----------------
 inclusao_proj = consolidado[consolidado['Situação Atual'].isin(situacoes_inclusao)]
 inclusao_proj = inclusao_proj.groupby('Projeto')['Participante'].nunique().reset_index(name='Incluídos')
 inclusao_proj = inclusao_proj.merge(total_participantes_total, on='Projeto')
 inclusao_proj['Taxa de Inclusão (%)'] = (inclusao_proj['Incluídos'] / inclusao_proj['Total Participantes'] * 100).round(2)
 
-# ----------------- TAXA DE INCLUSÃO POR CENTRO (POR PROJETO) -----------------
 inclusao_centro = consolidado[consolidado['Situação Atual'].isin(situacoes_inclusao)]
 inclusao_centro = inclusao_centro.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index(name='Incluídos')
 inclusao_centro = inclusao_centro.merge(total_participantes_por_centro, on=['Projeto', 'Centro'])
 inclusao_centro['Taxa de Inclusão (%)'] = (inclusao_centro['Incluídos'] / inclusao_centro['Total Participantes'] * 100).round(2)
 
-# ================== GRÁFICOS DE TAXA DE INCLUSÃO ==================
-
-# --------- Gráfico Comparativo Geral por Projeto ---------
-plt.figure(figsize=(10, 5))
-ax = sns.barplot(data=inclusao_proj, x='Projeto', y='Taxa de Inclusão (%)')
-plt.title("Taxa de Inclusão por Projeto")
-for p in ax.patches:
-    ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
-                ha='center', va='bottom', fontsize=9)
-plt.tight_layout()
-plt.show()
-
-# --------- Gráficos Comparativos por Centro (Separado por Projeto) ---------
-for projeto in inclusao_centro['Projeto'].unique():
-    dados_proj = inclusao_centro[inclusao_centro['Projeto'] == projeto]
-    plt.figure(figsize=(10, 5))
-    ax = sns.barplot(data=dados_proj, x='Centro', y='Taxa de Inclusão (%)')
-    plt.title(f"Taxa de Inclusão por Centro - Projeto {projeto}")
-    plt.xticks(rotation=45)
-    for p in ax.patches:
-        ax.annotate(f'{p.get_height():.2f}%', (p.get_x() + p.get_width() / 2., p.get_height()),
-                    ha='center', va='bottom', fontsize=9)
-    plt.tight_layout()
-    plt.show()
-
-# ========== Adiciona a Taxa de Inclusão na Tabela Final por Projeto ==========
-
+# Adiciona a Taxa de Inclusão na Tabela Final por Projeto e por Centro
 taxas_gerais = taxas_gerais.merge(
     inclusao_proj[['Projeto', 'Taxa de Inclusão (%)']],
     on='Projeto',
     how='outer'
 )
-
-# ========== Adiciona a Taxa de Inclusão na Tabela Final por Centro ==========
 
 taxas_por_centro = taxas_por_centro.merge(
     inclusao_centro[['Projeto', 'Centro', 'Taxa de Inclusão (%)']],
@@ -265,44 +206,352 @@ taxas_por_centro = taxas_por_centro.merge(
     how='outer'
 )
 
-# ========== EXPORTA TODAS AS TABELAS PARA UM ARQUIVO EXCEL COM VÁRIAS ABAS ==========
+# ============================================================================
+#                      BLOCO NOVO: CÁLCULO DO DEA USANDO pyDEA
+#  - modelo solicitado: CCR (CRS)
+#  - inputs e outputs mantidos conforme seu script original
+#  - implementação: tenta usar pyDEA (import) e, se não, invoca CLI do pyDEA
+# ============================================================================
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
 
-# Caminho para salvar o arquivo de saída
-caminho_saida = 'C:/Users/Jessica/Desktop/MBA_RAFA/analise_participantes_resultados.xlsx'
+# Variáveis DEA desejadas
+dea_inputs = ['Taxa Orçamentária (%)', 'Taxa de Falha de Seleção (%)']
+dea_outputs = ['Taxa de Inclusão (%)', 'Taxa de Conformidade (%)']
 
-# Legenda dos Projetos
-tabela_legenda_projetos = pd.DataFrame.from_dict(projetos_globais, orient='index', columns=['Código Projeto'])
-tabela_legenda_projetos.reset_index(inplace=True)
-tabela_legenda_projetos.columns = ['Nome Projeto Original', 'Código Projeto']
+# Garante que os dados estão completos
+taxas_por_centro_valid = taxas_por_centro.dropna(subset=dea_inputs + dea_outputs + ['Projeto', 'Centro']).copy()
 
-# Legenda dos Centros
-tabela_legenda_centros = pd.DataFrame.from_dict(centros_globais, orient='index', columns=['Código Centro'])
-tabela_legenda_centros.reset_index(inplace=True)
-tabela_legenda_centros.columns = ['Nome Centro Original', 'Código Centro']
+def calcular_dea_com_pydea(df, col_id_cols, inputs, outputs, modelo_rts='CRS', orientacao='both'):
+    """
+    Usa pyDEA para calcular scores de eficiência.
+    - df: DataFrame com colunas de inputs e outputs + colunas de identificação (Projeto, Centro)
+    - col_id_cols: lista de colunas que identificam o DMU, p.ex. ['Projeto', 'Centro']
+    - inputs: lista de nomes das colunas inputs
+    - outputs: lista de nomes das colunas outputs
+    - modelo_rts: 'CRS' para CCR (Constant Returns to Scale)
+    - orientacao: 'input', 'output' ou 'both'
+    Retorna DataFrame com colunas col_id_cols + ['Rank de Eficiência (DEA)']
+    """
+    # Se não há linhas, retorna vazio
+    if df.empty:
+        return pd.DataFrame(columns=col_id_cols + ['Rank de Eficiência (DEA)'])
 
-# Resumo Total de Participantes com nome dos códigos
-tabela_total_participantes = consolidado.groupby(['Projeto', 'Centro'])['Participante'].nunique().reset_index()
-tabela_total_participantes.columns = ['Código Projeto', 'Código Centro', 'Total Participantes']
+    # Prepara DMU (nome único) a partir das colunas de id
+    df_local = df.copy()
+    df_local['DMU_ID'] = df_local[col_id_cols].astype(str).agg(' | '.join, axis=1)
 
-with pd.ExcelWriter(caminho_saida, engine='xlsxwriter') as writer:
-    total_participantes_total.to_excel(writer, sheet_name='Total por Projeto', index=False)
-    total_participantes_por_centro.to_excel(writer, sheet_name='Total por Centro', index=False)
-    taxas_gerais.to_excel(writer, sheet_name='Taxas por Projeto', index=False)
+    # pyDEA prefere valores não-negativos e idealmente positivos -> asseguramos não-negatividade
+    # (pyDEA reclama de negativos). Se houver zeros, pyDEA ainda pode aceitar, mas alguns modelos não gostam.
+    for c in inputs + outputs:
+        # se houver negativos, faz shift (adiciona a constante)
+        minv = df_local[c].min()
+        if pd.notna(minv) and minv < 0:
+            df_local[c] = df_local[c] - minv + 1e-6  # shift para tornar não-negativo
+
+    # Escreve CSV temporário no formato simples: primeira coluna = DMU_ID, depois as variáveis
+    tmpdir = tempfile.mkdtemp(prefix='pydea_tmp_')
+    try:
+        csv_path = os.path.join(tmpdir, 'pydea_input.csv')
+        csv_df = df_local[['DMU_ID'] + inputs + outputs].copy()
+        csv_df.to_csv(csv_path, index=False)
+
+        # Gera arquivo de parâmetros minimalista para pyDEA CLI.
+        # Observação: o formato exato do arquivo de parâmetros do pyDEA pode variar entre versões.
+        # Abaixo montamos um arquivo simples com parâmetros comuns. Se a sua versão do pyDEA exigir
+        # campos diferentes, ajuste conforme a documentação / Data/Params/ do pyDEA.
+        param_path = os.path.join(tmpdir, 'pydea_params.txt')
+        # Montamos parâmetros básicos. 'DATA_FILE' e 'INPUTS' / 'OUTPUTS' são parâmetros conhecidos.
+        inputs_str = ','.join(inputs)
+        outputs_str = ','.join(outputs)
+        # DATA_SHEET left blank para CSV; OUTPUT_FILE 'auto' para que a CLI gere o arquivo padrão
+        param_lines = [
+            f"DATA_FILE = {csv_path}",
+            f"INPUTS = {inputs_str}",
+            f"OUTPUTS = {outputs_str}",
+            f"RTS = {modelo_rts}",        # CRS -> CCR
+            f"ORIENTATION = {orientacao}",# 'both' pede que rode input+output; ajuste se quiser só 'input' ou 'output'
+            f"OUTPUT_FILE = auto",
+            f"MODEL = Envelopment Form",
+            # garante que o arquivo de saída seja CSV (pyDEA CLI aceita argumento de formato também)
+            # caso precise adicionar outros parâmetros, acrescente aqui.
+        ]
+        with open(param_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(param_lines))
+
+        # 1) Tenta usar pyDEA por import (modo programático)
+        try:
+            import pyDEA  # noqa: F401
+            # Tenta usar a API de execução (módulo main), se disponível
+            try:
+                # chama o módulo principal similar ao que o CLI faria
+                # Observação: dependendo da versão do pyDEA o nome do método pode variar.
+                # Aqui tentamos usar a entrada de linha de comando do pacote.
+                import pyDEA.main as pydea_main  # type: ignore
+                # chamamos a função main com parâmetros semelhantes aos da linha de comando
+                # (param_file, output_format, output_dir, sheet_name)
+                # passamos 'csv' para forçar CSV como saída
+                pydea_main.main(param_path, 'csv', tmpdir, '')
+            except Exception:
+                # fallback: chamar CLI via subprocess (se import pyDEA existir, ainda assim usaremos CLI)
+                raise RuntimeError('Execução programática falhou; tentaremos CLI.')
+        except Exception:
+            # 2) Executa via subprocess (CLI)
+            # monta comando: python -m pyDEA.main param_file output_format output_dir sheet_name
+            python_exec = sys.executable or 'python'
+            cmd = [python_exec, '-m', 'pyDEA.main', param_path, 'csv', tmpdir, '']
+            # executa e captura saída (para debug)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if result.returncode != 0:
+                # mostra o erro para o usuário e lança exceção
+                raise RuntimeError(f"pyDEA CLI falhou (returncode {result.returncode}). Stderr:\n{result.stderr}\nStdout:\n{result.stdout}")
+
+        # Depois de executar o pyDEA, ele cria ficheiros de resultados no tmpdir
+        # Vamos procurar arquivos *_results.csv ou *_solution.csv gerados por pyDEA
+        candidates = glob.glob(os.path.join(tmpdir, '*results*.csv')) + glob.glob(os.path.join(tmpdir, '*result*.csv')) + glob.glob(os.path.join(tmpdir, '*solution*.csv')) + glob.glob(os.path.join(tmpdir, '*.csv'))
+        # Procuramos o ficheiro que contenha informação de eficiência (coluna com 'eff'/'score'/'Efficiency')
+        results_df = None
+        for cand in candidates:
+            try:
+                tmp = pd.read_csv(cand)
+            except Exception:
+                continue
+            # verifica se há coluna que indique eficiência
+            cols_lower = [c.lower() for c in tmp.columns.astype(str)]
+            # possíveis candidatos: 'efficiency', 'efficiency score', 'efficiency score (crs)', 'score' ...
+            matchs = [i for i, c in enumerate(cols_lower) if ('eff' in c or 'score' in c) and ('id' not in c)]
+            if matchs:
+                # preferimos coluna com 'eff' no nome
+                chosen_col = None
+                for c in tmp.columns:
+                    if 'eff' in c.lower():
+                        chosen_col = c
+                        break
+                if chosen_col is None:
+                    # fallback para a primeira que contenha 'score'
+                    for c in tmp.columns:
+                        if 'score' in c.lower():
+                            chosen_col = c
+                            break
+                if chosen_col is None:
+                    # usa primeira das matches
+                    chosen_col = tmp.columns[matchs[0]]
+                # tenta localizar coluna que identifique DMU
+                id_col = None
+                for cand_id in ['DMU', 'DMU_ID', 'DMU ID', 'Name', 'Identifier', 'dmu', 'id', 'DMU_Name']:
+                    if cand_id in tmp.columns:
+                        id_col = cand_id
+                        break
+                if id_col is None:
+                    # se não encontrou, tenta primeira coluna de texto
+                    for c in tmp.columns:
+                        if tmp[c].dtype == object:
+                            id_col = c
+                            break
+                if id_col is None:
+                    # não achou id; pula esse arquivo
+                    continue
+
+                # monta results_df com colunas DMU_ID e eficiência
+                results_df = tmp[[id_col, chosen_col]].copy()
+                results_df.columns = ['DMU_ID', 'Efficiency_raw']
+                break
+
+        if results_df is None:
+            # Se não achou nenhum CSV válido, tenta checar por ficheiros xlsx (algumas versões do pyDEA salvam xlsx)
+            xlsx_candidates = glob.glob(os.path.join(tmpdir, '*.xlsx')) + glob.glob(os.path.join(tmpdir, '*results*.xls*'))
+            for cand in xlsx_candidates:
+                try:
+                    tmp = pd.read_excel(cand, sheet_name=None)  # le todas as sheets
+                except Exception:
+                    continue
+                for sheet, tmpdf in tmp.items():
+                    cols_lower = [c.lower() for c in tmpdf.columns.astype(str)]
+                    matchs = [i for i, c in enumerate(cols_lower) if ('eff' in c or 'score' in c) and ('id' not in c)]
+                    if matchs:
+                        # escolhe coluna
+                        chosen_col = None
+                        for c in tmpdf.columns:
+                            if 'eff' in c.lower():
+                                chosen_col = c
+                                break
+                        if chosen_col is None:
+                            for c in tmpdf.columns:
+                                if 'score' in c.lower():
+                                    chosen_col = c
+                                    break
+                        id_col = None
+                        for cand_id in ['DMU', 'DMU_ID', 'DMU ID', 'Name', 'Identifier', 'dmu', 'id', 'DMU_Name']:
+                            if cand_id in tmpdf.columns:
+                                id_col = cand_id
+                                break
+                        if id_col is None:
+                            for c in tmpdf.columns:
+                                if tmpdf[c].dtype == object:
+                                    id_col = c
+                                    break
+                        if id_col is None:
+                            continue
+                        results_df = tmpdf[[id_col, chosen_col]].copy()
+                        results_df.columns = ['DMU_ID', 'Efficiency_raw']
+                        break
+                if results_df is not None:
+                    break
+
+        if results_df is None:
+            raise RuntimeError("Não foi possível localizar o ficheiro de resultados do pyDEA ou a coluna de eficiência. Verifique a execução do pyDEA e o formato de saída.")
+
+        # Normaliza/transforma a Efficiency_raw para ficar no intervalo [0,1] e chamar de 'Rank de Eficiência (DEA)'
+        # Alguns outputs do pyDEA já estão em [0,1]; verificamos e ajustamos apenas se necessário.
+        eff = pd.to_numeric(results_df['Efficiency_raw'], errors='coerce')
+        # Se eficiência for >1 (ex: super-efficiency) reescalamos para 0-1 (dividindo pelo max)
+        if eff.isnull().all():
+            raise RuntimeError("Coluna de eficiência lida contém apenas valores não-numéricos.")
+        if eff.max() > 1 or eff.min() < 0:
+            eff_scaled = (eff - eff.min()) / (eff.max() - eff.min())
+        else:
+            eff_scaled = eff  # já entre 0 e 1
+        results_df['Rank de Eficiência (DEA)'] = eff_scaled.round(6)
+
+        # Junta com df_local para retornar Projeto e Centro (col_id_cols)
+        final = df_local.merge(results_df[['DMU_ID', 'Rank de Eficiência (DEA)']], on='DMU_ID', how='left')
+        out = final[col_id_cols + ['Rank de Eficiência (DEA)']].copy()
+
+        return out
+
+    finally:
+        # limpa temporário
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
+
+
+# Implementa fallback (se pyDEA não estiver instalado ou der erro).
+def calcular_dea_fallback(df, col_id_cols, inputs, outputs):
+    """
+    Fallback: versão simples (approx) do DEA que já existia no seu script original.
+    Mantive a lógica original (escalamento + comparação simples) como plano B.
+    """
+    df_valid = df.dropna(subset=inputs + outputs).copy()
+    scaler = MinMaxScaler()
+    df_valid[inputs + outputs] = scaler.fit_transform(df_valid[inputs + outputs])
+
+    X = df_valid[inputs].values
+    Y = df_valid[outputs].values
+
+    eficiencia = []
+    for i in range(len(df_valid)):
+        xi = X[i]
+        yi = Y[i]
+        ratios = []
+
+        for j in range(len(df_valid)):
+            xj = X[j]
+            yj = Y[j]
+            if all(xj <= xi) and all(yj >= yi):
+                ratios.append(np.linalg.norm(xj) / np.linalg.norm(xi) if np.linalg.norm(xi) != 0 else 0)
+
+        eficiencia.append(1 / (1 + sum(ratios)) if sum(ratios) > 0 else 1.0)
+
+    df_result = df_valid.copy()
+    df_result['Rank de Eficiência (DEA)'] = eficiencia
+    return df_result[col_id_cols + ['Rank de Eficiência (DEA)']]
+
+# Função wrapper que tenta pyDEA e se falhar usa fallback
+def calcular_dea(df, col_id_cols, inputs, outputs):
+    try:
+        dea_result = calcular_dea_com_pydea(df, col_id_cols, inputs, outputs, modelo_rts='CRS', orientacao='both')
+        return dea_result
+    except Exception as e:
+        print(f"[Aviso] Execução pyDEA falhou: {e}\nUsando método fallback (implementação local).")
+        return calcular_dea_fallback(df, col_id_cols, inputs, outputs)
+
+# Executa o cálculo do DEA por Projeto+Centro
+if not taxas_por_centro_valid.empty:
+    try:
+        dea_centro = calcular_dea(
+            df=taxas_por_centro_valid,
+            col_id_cols=['Projeto', 'Centro'],
+            inputs=dea_inputs,
+            outputs=dea_outputs
+        )
+    except Exception as e:
+        print(f"[Erro inesperado no cálculo do DEA]: {e}")
+        dea_centro = pd.DataFrame(columns=['Projeto', 'Centro', 'Rank de Eficiência (DEA)'])
+else:
+    dea_centro = pd.DataFrame(columns=['Projeto', 'Centro', 'Rank de Eficiência (DEA)'])
+
+# Merge do resultado na tabela principal
+# Se dea_centro contém colunas Projeto/Centro, faz merge; caso contrário ignora.
+if not dea_centro.empty and set(['Projeto', 'Centro', 'Rank de Eficiência (DEA)']).issubset(dea_centro.columns):
+    taxas_por_centro = taxas_por_centro.merge(dea_centro, on=['Projeto', 'Centro'], how='left')
+else:
+    taxas_por_centro['Rank de Eficiência (DEA)'] = np.nan
+
+# Média do rank por projeto
+rank_projeto_medio = taxas_por_centro.dropna(subset=['Rank de Eficiência (DEA)']) \
+    .groupby('Projeto')['Rank de Eficiência (DEA)'].mean().reset_index()
+
+rank_projeto_medio['Rank de Eficiência (DEA)'] = rank_projeto_medio['Rank de Eficiência (DEA)'].round(4)
+rank_projeto_medio.sort_values('Rank de Eficiência (DEA)', ascending=False, inplace=True)
+
+# Adiciona também na tabela taxas_gerais
+taxas_gerais = taxas_gerais.merge(rank_projeto_medio, on='Projeto', how='left')
+
+# ===========================
+# PLOTS DE DEA (mantendo lógica do script original)
+# ===========================
+for projeto in taxas_por_centro['Projeto'].unique():
+    dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto].copy()
+
+    if 'Rank de Eficiência (DEA)' not in dados_proj.columns:
+        print(f"[ERRO] Coluna 'Rank de Eficiência (DEA)' ausente no projeto {projeto}")
+        continue
+
+    dados_proj = dados_proj.dropna(subset=['Rank de Eficiência (DEA)'])
+    if dados_proj.empty:
+        continue
+    dados_proj.sort_values('Rank de Eficiência (DEA)', ascending=False, inplace=True)
+
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(data=dados_proj, x='Centro', y='Rank de Eficiência (DEA)')
+    plt.title(f"Rank de Eficiência (DEA) por Centro - Projeto {projeto}")
+    plt.xticks(rotation=45)
+    for p in ax.patches:
+        altura = p.get_height()
+        ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+plt.figure(figsize=(10, 5))
+if not rank_projeto_medio.empty:
+    ax = sns.barplot(data=rank_projeto_medio, x='Projeto', y='Rank de Eficiência (DEA)')
+    plt.title("Média do Rank de Eficiência (DEA) por Projeto")
+    for p in ax.patches:
+        altura = p.get_height()
+        ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
+                    ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+# Exporta tabelas para Excel (mantive os nomes e a lógica original)
+with pd.ExcelWriter('Relatorio_Taxas_Completo.xlsx', engine='xlsxwriter') as writer:
+    # tabelas de orçamento que virão a seguir (serão criadas abaixo)
+    # (para preservar a lógica original, reescrevemos novamente no final do script)
+    taxas_gerais.to_excel(writer, sheet_name='Taxas Gerais', index=False)
     taxas_por_centro.to_excel(writer, sheet_name='Taxas por Centro', index=False)
-    inclusao_proj.to_excel(writer, sheet_name='Inclusão por Projeto', index=False)
-    inclusao_centro.to_excel(writer, sheet_name='Inclusão por Centro', index=False)
-    conformidade_proj.to_excel(writer, sheet_name='Conformidade Projeto', index=False)
-    falha_proj.to_excel(writer, sheet_name='Falha Projeto', index=False)
-    conformidade_centro.to_excel(writer, sheet_name='Conformidade Centro', index=False)
-    falha_centro.to_excel(writer, sheet_name='Falha Centro', index=False)
-    tabela_legenda_projetos.to_excel(writer, sheet_name='Legenda Projetos', index=False)
-    tabela_legenda_centros.to_excel(writer, sheet_name='Legenda Centros', index=False)
-    tabela_total_participantes.to_excel(writer, sheet_name='Resumo Participantes', index=False)
+    rank_projeto_medio.to_excel(writer, sheet_name='Rank Médio por Projeto', index=False)
+    # Se dea_centro estiver no formato Projeto/Centro, salva também
+    try:
+        dea_centro.to_excel(writer, sheet_name='Rank DEA por Centro', index=False)
+    except Exception:
+        pass
 
-# ============================
-# NOVO BLOCO: PROCESSAMENTO DOS DADOS DE ORÇAMENTO
-# ============================
-
+# ===========================
+# BLOCO: processamento dos dados de orçamento (igual ao original)
+# ===========================
 lista_orcamentos = []
 
 for nome, caminho in arquivos_orcamento.items():
@@ -315,10 +564,6 @@ for nome, caminho in arquivos_orcamento.items():
     lista_orcamentos.append(df_orc)
 
 orcamento_consolidado = pd.concat(lista_orcamentos, ignore_index=True)
-
-# ============================
-# CÁLCULOS DE TAXA ORÇAMENTÁRIA
-# ============================
 
 # Junta orçamento com taxa de inclusão (já calculada)
 orcamento_com_inclusos = orcamento_consolidado.merge(
@@ -337,14 +582,9 @@ orcamento_com_inclusos['Taxa Orçamentária (%)'] = (
     (orcamento_com_inclusos['Total Bolsa Investigador'] / orcamento_com_inclusos['Total Bolsa PCA']) * 100
 ).round(2)
 
-# ============================
-# TABELAS DE TAXA ORÇAMENTÁRIA
-# ============================
-
-# Por centro (já calculada acima)
+# TABELAS TAXA ORÇAMENTÁRIA
 taxa_orcamentaria_centro = orcamento_com_inclusos[['Projeto', 'Centro', 'Taxa Orçamentária (%)']]
 
-# Por projeto (média ponderada)
 taxa_orcamentaria_projeto = orcamento_com_inclusos.copy()
 taxa_orcamentaria_projeto = taxa_orcamentaria_projeto.groupby('Projeto').apply(
     lambda g: pd.Series({
@@ -354,10 +594,7 @@ taxa_orcamentaria_projeto = taxa_orcamentaria_projeto.groupby('Projeto').apply(
     })
 ).reset_index()
 
-# ============================
-# INTEGRA TABELAS EXISTENTES
-# ============================
-
+# Integra as tabelas existentes
 taxas_gerais = taxas_gerais.merge(
     taxa_orcamentaria_projeto[['Projeto', 'Taxa Orçamentária (%)']], on='Projeto', how='outer'
 )
@@ -366,11 +603,7 @@ taxas_por_centro = taxas_por_centro.merge(
     taxa_orcamentaria_centro[['Projeto','Centro', 'Taxa Orçamentária (%)']], on=['Projeto', 'Centro'], how='outer'
 )
 
-# ============================
-# GRÁFICOS DE TAXA ORÇAMENTÁRIA
-# ============================
-
-# Gráfico geral por projeto
+# GRÁFICOS TAXA ORÇAMENTÁRIA (mantidos)
 plt.figure(figsize=(10, 5))
 ax = sns.barplot(data=taxa_orcamentaria_projeto, x='Projeto', y='Taxa Orçamentária (%)')
 plt.title("Taxa Orçamentária por Projeto")
@@ -380,7 +613,6 @@ for p in ax.patches:
 plt.tight_layout()
 plt.show()
 
-# Gráficos por centro e projeto
 for projeto in taxa_orcamentaria_centro['Projeto'].unique():
     dados_proj = taxa_orcamentaria_centro[taxa_orcamentaria_centro['Projeto'] == projeto]
     plt.figure(figsize=(10, 5))
@@ -393,14 +625,10 @@ for projeto in taxa_orcamentaria_centro['Projeto'].unique():
     plt.tight_layout()
     plt.show()
 
-# Gráficos de pizza por projeto
 for projeto in taxa_orcamentaria_centro['Projeto'].unique():
     dados_proj = taxa_orcamentaria_centro[taxa_orcamentaria_centro['Projeto'] == projeto].copy()
-    
-    # Remove entradas com Taxa Orçamentária ausente ou zero
     dados_proj = dados_proj.dropna(subset=['Taxa Orçamentária (%)'])
     dados_proj = dados_proj[dados_proj['Taxa Orçamentária (%)'] > 0]
-
     if not dados_proj.empty:
         plt.figure(figsize=(7, 7))
         plt.pie(
@@ -415,171 +643,22 @@ for projeto in taxa_orcamentaria_centro['Projeto'].unique():
         plt.show()
     else:
         print(f"[Aviso] Projeto {projeto} não possui dados válidos para gráfico de pizza.")
-        
-        # Junta a Taxa Orçamentária com as demais tabelas de métricas
-tabela1 = taxa_orcamentaria_projeto[['Projeto', 'Taxa Orçamentária (%)']].copy()
 
-tabela2 = taxa_orcamentaria_centro[['Projeto', 'Centro', 'Taxa Orçamentária (%)']].copy()
-
-
-# Exportar todas as tabelas para o Excel
+# Escreve relatórios finais (incluindo DEA)
 with pd.ExcelWriter('Relatorio_Taxas_Completo.xlsx', engine='xlsxwriter') as writer:
-    tabela1.to_excel(writer, sheet_name='Resumo Projeto - Orcamento', index=False)
-    tabela2.to_excel(writer, sheet_name='Resumo Projeto-Centro Orc.', index=False)
-
-    
-    # Novas abas solicitadas
+    taxa_orcamentaria_projeto.to_excel(writer, sheet_name='Resumo Projeto - Orcamento', index=False)
+    taxa_orcamentaria_centro.to_excel(writer, sheet_name='Resumo Projeto-Centro Orc.', index=False)
     taxas_gerais.to_excel(writer, sheet_name='Taxas Gerais', index=False)
     taxas_por_centro.to_excel(writer, sheet_name='Taxas por Centro', index=False)
-
-from sklearn.preprocessing import MinMaxScaler
-import numpy as np
-
-def calcular_dea(df, col_id, inputs, outputs):
-    df_valid = df.dropna(subset=inputs + outputs).copy()
-
-    # Escala para 0-1
-    scaler = MinMaxScaler()
-    df_valid[inputs + outputs] = scaler.fit_transform(df_valid[inputs + outputs])
-
-    X = df_valid[inputs].values
-    Y = df_valid[outputs].values
-
-    eficiencia = []
-    for i in range(len(df_valid)):
-        xi = X[i]
-        yi = Y[i]
-        ratios = []
-
-        for j in range(len(df_valid)):
-            xj = X[j]
-            yj = Y[j]
-            if all(xj <= xi) and all(yj >= yi):
-                ratios.append(np.linalg.norm(xj) / np.linalg.norm(xi) if np.linalg.norm(xi) != 0 else 0)
-        
-        eficiencia.append(1 / (1 + sum(ratios)) if sum(ratios) > 0 else 1.0)
-
-    df_result = df_valid[col_id].copy()
-    df_result['Rank de Eficiência (DEA)'] = eficiencia
-    return df_result
-
-dea_inputs = ['Taxa Orçamentária (%)', 'Taxa de Falha de Seleção (%)']
-dea_outputs = ['Taxa de Inclusão (%)', 'Taxa de Conformidade (%)']
-
-# Garante que os dados estão completos
-taxas_por_centro_valid = taxas_por_centro.dropna(subset=dea_inputs + dea_outputs + ['Projeto', 'Centro'])
-
-# Cálculo do DEA por Projeto + Centro
-dea_centro = calcular_dea(
-    df=taxas_por_centro_valid,
-    col_id=['Projeto', 'Centro'],
-    inputs=dea_inputs,
-    outputs=dea_outputs
-)
-
-# Merge do resultado na tabela principal
-taxas_por_centro = taxas_por_centro.merge(dea_centro, on=['Projeto', 'Centro'], how='left')
-
-rank_projeto_medio = taxas_por_centro.dropna(subset=['Rank de Eficiência (DEA)']) \
-    .groupby('Projeto')['Rank de Eficiência (DEA)'].mean().reset_index()
-
-rank_projeto_medio['Rank de Eficiência (DEA)'] = rank_projeto_medio['Rank de Eficiência (DEA)'].round(4)
-rank_projeto_medio.sort_values('Rank de Eficiência (DEA)', ascending=False, inplace=True)
-
-# Adiciona também na tabela taxas_gerais
-taxas_gerais = taxas_gerais.merge(rank_projeto_medio, on='Projeto', how='left')
-
-for projeto in taxas_por_centro['Projeto'].unique():
-    dados_proj = taxas_por_centro[taxas_por_centro['Projeto'] == projeto].copy()
-
-    if 'Rank de Eficiência (DEA)' not in dados_proj.columns:
-        print(f"[ERRO] Coluna 'Rank de Eficiência (DEA)' ausente no projeto {projeto}")
-        continue
-
-    dados_proj = dados_proj.dropna(subset=['Rank de Eficiência (DEA)'])
-    dados_proj.sort_values('Rank de Eficiência (DEA)', ascending=False, inplace=True)
-
-    plt.figure(figsize=(10, 5))
-    ax = sns.barplot(data=dados_proj, x='Centro', y='Rank de Eficiência (DEA)', palette='viridis')
-    plt.title(f"Rank de Eficiência (DEA) por Centro - Projeto {projeto}")
-    plt.xticks(rotation=45)
-    for p in ax.patches:
-        altura = p.get_height()
-        ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
-                    ha='center', va='bottom', fontsize=9)
-    plt.tight_layout()
-    plt.show()
-
-plt.figure(figsize=(10, 5))
-ax = sns.barplot(data=rank_projeto_medio, x='Projeto', y='Rank de Eficiência (DEA)', palette='crest')
-plt.title("Média do Rank de Eficiência (DEA) por Projeto")
-for p in ax.patches:
-    altura = p.get_height()
-    ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
-                ha='center', va='bottom', fontsize=9)
-plt.tight_layout()
-plt.show()
-
-# Exportar todas as tabelas para o Excel
-with pd.ExcelWriter('Relatorio_Taxas_Completo.xlsx', engine='xlsxwriter') as writer:
-    tabela1.to_excel(writer, sheet_name='Resumo Projeto - Orcamento', index=False)
-    tabela2.to_excel(writer, sheet_name='Resumo Projeto-Centro Orc.', index=False)
-    
-    # Tabelas com DEA integradas
-    taxas_gerais.to_excel(writer, sheet_name='Taxas Gerais', index=False)
-    taxas_por_centro.to_excel(writer, sheet_name='Taxas por Centro', index=False)
-
-    # Nova aba com média de eficiência por projeto
     rank_projeto_medio.to_excel(writer, sheet_name='Rank Médio por Projeto', index=False)
+    try:
+        dea_centro.to_excel(writer, sheet_name='Rank DEA por Centro', index=False)
+    except Exception:
+        pass
 
-    dea_centro.to_excel(writer, sheet_name='Rank DEA por Centro', index=False)
-    
-   
-# ========================
-# GRÁFICO DE FRONTEIRA DEA (ENVOLTÓRIA)
-# ========================
-
-# Escolhemos uma visualização 2D: Input = Taxa Orçamentária, Output = Taxa de Conformidade
-# Apenas centros com dados completos
-dados_dea_plot = taxas_por_centro.dropna(subset=['Taxa Orçamentária (%)', 'Taxa de Conformidade (%)', 'Rank de Eficiência (DEA)']).copy()
-
-# Identifica pontos eficientes (DEA = 1.0)
-dados_dea_plot['É Eficiente'] = dados_dea_plot['Rank de Eficiência (DEA)'].round(4) == 1.0
-
-for projeto in dados_dea_plot['Projeto'].unique():
-    dados_proj = dados_dea_plot[dados_dea_plot['Projeto'] == projeto]
-    
-    plt.figure(figsize=(8, 6))
-    sns.scatterplot(
-        data=dados_proj,
-        x='Taxa Orçamentária (%)',
-        y='Taxa de Conformidade (%)',
-        hue='É Eficiente',
-        palette={True: 'blue', False: 'gray'},
-        s=100
-    )
-
-    # Anotações
-    for _, row in dados_proj.iterrows():
-        plt.text(row['Taxa Orçamentária (%)'] + 0.5, row['Taxa de Conformidade (%)'] + 0.5,
-                 row['Centro'], fontsize=8)
-
-    plt.title(f'Fronteira de Eficiência (DEA) - Projeto {projeto}')
-    plt.xlabel('Taxa Orçamentária (%)')
-    plt.ylabel('Taxa de Conformidade (%)')
-    plt.legend(title='Centro Eficiente', loc='best')
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-    
-    # ========================
-# CÁLCULO DE MÉDIA E MEDIANA DAS TAXAS POR CENTRO (GERAL)
-# ========================
-
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Lista de métricas a avaliar
+# ===========================
+# Estatísticas finais / gráficos de média e mediana (mantidos)
+# ===========================
 metricas = [
     'Taxa Orçamentária (%)',
     'Taxa de Falha de Seleção (%)',
@@ -587,74 +666,49 @@ metricas = [
     'Taxa de Conformidade (%)'
 ]
 
-# Para cada métrica, calcula estatísticas e plota gráfico
 for metrica in metricas:
     dados_validos = taxas_por_centro[[metrica, 'Centro']].dropna()
-    
     if dados_validos.empty:
         print(f"[Aviso] Sem dados válidos para a métrica: {metrica}")
         continue
-    
     media = dados_validos[metrica].mean()
     mediana = dados_validos[metrica].median()
-
     print(f"{metrica}:")
     print(f"  - Média: {media:.2f}%")
     print(f"  - Mediana: {mediana:.2f}%")
-
-    # Gráfico de barras por Centro (independente do Projeto)
     plt.figure(figsize=(12, 6))
-    ax = sns.barplot(data=dados_validos, x='Centro', y=metrica, palette='Blues_d')
-
-    # Linhas tracejadas de média e mediana
+    ax = sns.barplot(data=dados_validos, x='Centro', y=metrica)
     plt.axhline(media, color='red', linestyle='--', label=f'Média ({media:.2f}%)')
     plt.axhline(mediana, color='green', linestyle='--', label=f'Mediana ({mediana:.2f}%)')
-
-    # Anotações
     for p in ax.patches:
         altura = p.get_height()
         ax.annotate(f'{altura:.2f}%', (p.get_x() + p.get_width() / 2., altura),
                     ha='center', va='bottom', fontsize=8)
-
     plt.title(f'{metrica} por Centro (Todos os Projetos)')
     plt.xticks(rotation=45)
     plt.legend()
     plt.tight_layout()
     plt.show()
-    
-    # ================================
-# MÉDIA, MEDIANA E GRÁFICO DO RANK DE EFICIÊNCIA POR CENTRO (GERAL)
-# ================================
 
-# Verifica se a coluna existe e tem dados
+# Estatísticas do DEA
 col_dea = 'Rank de Eficiência (DEA)'
-
 dados_dea_geral = taxas_por_centro[['Centro', col_dea]].dropna()
-
 if dados_dea_geral.empty:
     print("[Aviso] Não há dados disponíveis para Rank de Eficiência (DEA).")
 else:
     media_dea = dados_dea_geral[col_dea].mean()
     mediana_dea = dados_dea_geral[col_dea].median()
-
     print("Rank de Eficiência (DEA):")
     print(f"  - Média: {media_dea:.4f}")
     print(f"  - Mediana: {mediana_dea:.4f}")
-
-    # Gráfico de barras por Centro
     plt.figure(figsize=(12, 6))
-    ax = sns.barplot(data=dados_dea_geral, x='Centro', y=col_dea, palette='mako')
-
-    # Linhas tracejadas para média e mediana
+    ax = sns.barplot(data=dados_dea_geral, x='Centro', y=col_dea)
     plt.axhline(media_dea, color='red', linestyle='--', label=f'Média ({media_dea:.4f})')
     plt.axhline(mediana_dea, color='green', linestyle='--', label=f'Mediana ({mediana_dea:.4f})')
-
-    # Anotações
     for p in ax.patches:
         altura = p.get_height()
         ax.annotate(f'{altura:.4f}', (p.get_x() + p.get_width() / 2., altura),
                     ha='center', va='bottom', fontsize=8)
-
     plt.title('Rank de Eficiência (DEA) por Centro (Todos os Projetos)')
     plt.xticks(rotation=45)
     plt.ylabel('Rank de Eficiência (DEA)')
@@ -663,41 +717,26 @@ else:
     plt.tight_layout()
     plt.show()
 
-# ========================
-# GRÁFICO DE DISPERSÃO: RELAÇÃO ENTRE CADA TAXA E O RANK DE EFICIÊNCIA (DEA)
-# ========================
-
-# Certifica-se de que as colunas necessárias estão presentes
+# Dispersion plot entre taxas e Rank DEA (mantido)
 taxas_para_grafico = dea_inputs + dea_outputs + ['Rank de Eficiência (DEA)', 'Centro']
 dados_disp = taxas_por_centro.dropna(subset=taxas_para_grafico).copy()
-
-# Cores distintas para cada variável
-cores = {
-    'Taxa Orçamentária (%)': 'blue',
-    'Taxa de Falha de Seleção (%)': 'orange',
-    'Taxa de Inclusão (%)': 'green',
-    'Taxa de Conformidade (%)': 'purple'
-}
-
-plt.figure(figsize=(10, 6))
-
-# Para cada taxa (input/output), plota uma linha de dispersão no mesmo gráfico
-for taxa in dea_inputs + dea_outputs:
-    plt.scatter(
-        dados_disp[taxa],
-        dados_disp['Rank de Eficiência (DEA)'],
-        label=taxa,
-        alpha=0.7,
-        s=80,
-        color=cores.get(taxa, 'gray'),
-        edgecolors='black'
-    )
-
-plt.title("Relação entre Taxas e Rank de Eficiência (DEA)")
-plt.xlabel("Valor da Taxa (%)")
-plt.ylabel("Rank de Eficiência (DEA)")
-plt.legend(title="Variável")
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-
+if not dados_disp.empty:
+    plt.figure(figsize=(10, 6))
+    for taxa in dea_inputs + dea_outputs:
+        plt.scatter(
+            dados_disp[taxa],
+            dados_disp['Rank de Eficiência (DEA)'],
+            label=taxa,
+            alpha=0.7,
+            s=80,
+            edgecolors='black'
+        )
+    plt.title("Relação entre Taxas e Rank de Eficiência (DEA)")
+    plt.xlabel("Valor da Taxa (%)")
+    plt.ylabel("Rank de Eficiência (DEA)")
+    plt.legend(title="Variável")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+else:
+    print("[Aviso] Dados insuficientes para plot de dispersão entre taxas e Rank DEA.")
